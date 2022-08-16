@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <br>
+    <h2 style="text-align: center;">
+        {% block title %}
+        {{ report_info['title'] }} created at {{ report_info['dt'] }}
+        {% endblock %}
+    </h2>
+    <br>
+    <table style="width:100%;">
+      <tr>
+            <th>hash_value (MD5 or Sha256)</th>
+            <th>Fortinet detection name</th>
+            <th>Number of engines detected</th>
+            <th>Scan Date</th>
+      </tr>
+      {% for hash in report_hashes %}
+        <tr>
+            <td>{{ hash['hash_value'] }}</td>
+            <td>{{ hash['fortinet_result'] }}</td>
+            <td>{{ hash['positives'] }}</td>
+            <td>{{ hash['scan_date'] }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+{% endblock %}

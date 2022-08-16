@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <br><br>
+    <h2>{% block welcome %} Hi {{ username }} {% endblock %}</h2>
+    <h1>{% block title %} Welcome to VirusTotal Report {% endblock %}</h1>
+    <hr>
+    <br>
+    {% for report in reports %}
+        <a href="{{ url_for('generate_report', report_id=report['id']) }}">
+            <h3>{{ report['title'] }}</h3>
+        </a>
+        <span class="badge badge-primary">{{ report['dt'] }}</span>
+        <hr>
+    {% endfor %}
+    <br>
+    <form method=post enctype=multipart/form-data>
+      <input type=file name=file>
+      <input type=submit value=Upload>
+    </form>
+    {% if message %}
+        <span style="color: red">{{ message }}</span>
+    {% endif %}
+{% endblock %}

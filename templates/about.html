@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <br>
+    <h1>{% block dev %} Developer: Eiman Ardakanian {% endblock %}</h1>
+    <br>
+    <h3>{% block stack %} Written in Python, Flask, and an internal SQLite DB {% endblock %}</h3>
+    <br>
+    <h3>{% block details %} After basic registration and login, this app will receive a text file, read it line by line,
+        check the database for existing hashes (scanned within the previous), and if not found, get the result from
+        VirusTotal API in the background (by using multi-threading), and store it in a report for the user.
+        <br><br>
+        After completion, it will show the report in the main page (which can be accessed after refreshing the page or
+        later after logging in) as well as some details in a tabular format by clicking in that report.
+        If the hash values wouldn't be found in the response, all values will be set to None in the view.
+        Besides, for hash values that Fortinet's result would be unavailable, the Fortinet values will be set to None as
+        well in the table and the DB. {% endblock %}</h3>
+{% endblock %}
