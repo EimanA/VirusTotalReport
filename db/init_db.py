@@ -1,3 +1,6 @@
+"""
+This code needs to be run in order to create a new/fresh sqlite3 database
+"""
 import sqlite3
 from os import path
 
@@ -16,5 +19,6 @@ with open(schema_path) as f:
 # cur.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', ('user1', 'pass1'))
 # result = cur.execute('SELECT id FROM users WHERE username = ?', ('user1', )).fetchone()
 # print(result)
+
 connection.commit()
 connection.close()

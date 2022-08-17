@@ -13,6 +13,8 @@ input {
 	color: #2f3947;
 }
 
+/* This part of the styling was copied from https://codeshack.io/login-system-python-flask-mysql/
+*/
 * {
   	box-sizing: border-box;
   	font-family: -apple-system, BlinkMacSystemFont, "segoe ui", roboto, oxygen, ubuntu, cantarell, "fira sans", "droid sans", "helvetica neue", Arial, sans-serif;

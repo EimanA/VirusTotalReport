@@ -1,3 +1,7 @@
+"""
+Developed by Eiman Ardakanian for a Fortinet hiring interview
+Date: 2022-08-16
+"""
 import pathlib
 import threading
 import requests
@@ -21,6 +25,11 @@ def get_db_connection():
 
 
 def get_report(report_id):
+    """
+    Get report information and hashes related to this provided report id
+    :param report_id: an int
+    :return: report information and hashes related to this report
+    """
     conn = get_db_connection()
     report_hashes = conn.execute('SELECT hashes.id, hash_value, fortinet_result, positives, scan_date '
                                  'FROM (SELECT hash_id, report_id FROM hash_report_bridge WHERE report_id = ?) '
@@ -36,10 +45,40 @@ def get_report(report_id):
 
 
 def allowed_file(filename):
+    """
+    Check if the uploaded file has a valid format (.txt bin this case)
+
+    :param filename: a str representing the filename
+    :return: true if the extension is valid (.txt bin this case)
+    """
     return pathlib.Path(filename).suffix in ALLOWED_EXTENSIONS
 
 
+def get_hash_info_from_inner_db(cur, item):
+    """
+    Check for and fetch the provided hash (item) from the internal database
+    :param cur: a cursor for connecting and querying the internal sqlite database
+    :param item: a str representing the hash
+    :return: the info/result of the query for this hash in the internal db
+    """
+    record = None
+    try:
+        record = cur.execute('SELECT id, hash_value, fortinet_result, positives, scan_date, '
+                             'Cast((JulianDay("now") - JulianDay(scan_date)) AS INTEGER) AS diff '
+                             'FROM hashes WHERE hash_value = ?', (item,)).fetchone()
+    except Exception as e:
+        print(f"An error happened during accessing the db and getting the result for hash {item}")
+        print(e)
+    return record
+
+
 def get_info_from_vt(item):
+    """
+    Get the JSON from VirusTotal website for the provided hash
+
+    :param item: a str representing the provided hash
+    :return: a json object containing the response received from virustotal website
+    """
     url = 'https://www.virustotal.com/vtapi/v2/file/report'
     params = {'apikey': apikey, 'resource': item}
     response = requests.get(url, params=params)
@@ -52,18 +91,15 @@ def get_info_from_vt(item):
     return result
 
 
-def get_hash_info_from_inner_db(cur, item):
-    try:
-        record = cur.execute('SELECT id, hash_value, fortinet_result, positives, scan_date, '
-                             'Cast((JulianDay("now") - JulianDay(scan_date)) AS INTEGER) AS diff '
-                             'FROM hashes WHERE hash_value = ?', (item,)).fetchone()
-    except Exception as e:
-        print(f"An error happened during accessing the db and getting the result for hash {item}")
-        print(e)
-    return record
-
-
 def insert_or_update_hash_table(cur, item, record, result):
+    """
+    Update (or Create) the fetched result from VT api in the internal db
+
+    :param cur: a cursor for connecting and querying the internal sqlite database
+    :param item: a str representing the provided hash
+    :param record: the iterable record fetched from the internal db (null = no record found for the provided hash)
+    :param result: the JSON file fetched from VT api
+    """
     hash_value = item
     fortinet_result = result["scans"]["Fortinet"]["result"] if "scans" in result and \
                                                                "Fortinet" in result["scans"] else None
@@ -96,6 +132,13 @@ def insert_or_update_hash_table(cur, item, record, result):
 
 
 def add_hash_id_to_hashlist(cur, hash_id_list, item):
+    """
+    Append the hash id of the provided hash to the list of hash ids
+
+    :param cur: a cursor for connecting and querying the internal sqlite database
+    :param hash_id_list: a list of all hash ids that have been processed so far
+    :param item: a str representing a hash value
+    """
     try:
         hash_id = cur.execute('SELECT id FROM hashes WHERE hash_value = ?', (item,)).fetchone()
         hash_id_list.append(int(hash_id[0]))
@@ -105,6 +148,13 @@ def add_hash_id_to_hashlist(cur, hash_id_list, item):
 
 
 def add_this_report_to_internal_db(cur, user_id):
+    """
+    Add a new report in the internal db related to this specific user
+
+    :param cur: a cursor for connecting and querying the internal sqlite database
+    :param user_id: an int representing this user asking for a new report
+    :return: an int representing this created report id
+    """
     report_id = -1
     try:
         report_count = cur.execute('SELECT count(id) FROM reports WHERE user_id = (?) ORDER BY id DESC LIMIT 1',
@@ -126,6 +176,13 @@ def add_this_report_to_internal_db(cur, user_id):
 
 
 def connect_report_to_hash_list(cur, hash_id_list, report_id):
+    """
+    Add all relations between a report and requested hashes in the bridging table/entity connecting hashes and reports
+
+    :param cur: a cursor for connecting and querying the internal sqlite database
+    :param hash_id_list: a list of ints each representing a hash id
+    :param report_id: an int representing the created report id
+    """
     try:
         for hid in hash_id_list:
             cur.execute('INSERT INTO hash_report_bridge (hash_id, report_id) VALUES (?, ?)', (hid, int(report_id[0])))
@@ -135,6 +192,11 @@ def connect_report_to_hash_list(cur, hash_id_list, report_id):
 
 
 def create_report(*args):
+    """
+    Create a report for the uploaded file of hashes
+
+    :param args: an iterable(tuple) containing user_id and all the hash values
+    """
     print("Starting report creation")
 
     conn = sqlite3.connect('database.db')
@@ -143,15 +205,22 @@ def create_report(*args):
     user_id = args[0]
     items = args[1:]
     for item in items:
+        # check the internal db for this item(hash)
         record = get_hash_info_from_inner_db(cur, item)
+
+        # if no record was found or if the scan date is older than a day, fetch the result from VT api and
+        # update/insert it in the internal db
         if not record or record[5] != 1:
             result = get_info_from_vt(item)
-
             insert_or_update_hash_table(cur, item, record, result)
 
+        # fetch and add all hash ids in the internal db to a list
         add_hash_id_to_hashlist(cur, hash_id_list, item)
 
+    # create a new report for this user in the internal db
     report_id = add_this_report_to_internal_db(cur, user_id)
+
+    # connect this report to all its hashes by filling the bridge table/entity
     connect_report_to_hash_list(cur, hash_id_list, report_id)
 
     conn.commit()
@@ -176,18 +245,25 @@ def index(message=None):
 @app.route('/', methods=['POST'])
 @app.route('/message=<message>', methods=['POST'])
 def upload_file(message=None):
-    if 'file' not in request.files:
+    if 'file' not in request.files:  # if file is not provided in the post request
         return redirect(url_for('index', message='No file part'))
     file = request.files['file']
+
+    # if no file was selected
     if file.filename == '':
         return redirect(url_for('index', message='No selected file'))
+
+    # if the format of file is not supported
     if file and allowed_file(file.filename):
         lines = [str(line.decode('utf-8')) for line in file.read().splitlines()]
         user_id = session["id"]
+
         # creating a list of user_id and all lines to pass to threads
         user_and_lines = [user_id]
         for line in lines:
             user_and_lines.append(line)
+
+        # send the whole process to the background
         thread = threading.Thread(target=create_report, args=tuple(user_and_lines))
         thread.start()
     else:
@@ -217,6 +293,8 @@ def login():
         cur = conn.cursor()
         account = cur.execute('SELECT id, username, password_hash FROM users WHERE username = (?)',
                               (username,)).fetchone()
+
+        # if the credentials are passed
         if account and check_password_hash(account[2], password):
             # Create session data
             session['loggedin'] = True
